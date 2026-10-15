@@ -1,0 +1,86 @@
+4.1 Identify at least 12 operations
+Operations describe actions performed by the system, not just its states.
+Operation ID	Operation Name	Purpose
+OP-01	AcceptDeliveryRequest	Validate and accept a delivery request.
+OP-02	CalculateDeliveryRoute	Select a safe route to the destination.
+OP-03	DetectAndAvoidObstacle	Detect an obstacle and plan a safe avoidance manoeuvre.
+OP-04	MonitorAndCorrectChamberConditions	Monitor and correct temperature and humidity.
+OP-05	DeliverMedicineBatch	Release the medicine batch at the destination under safe conditions.
+OP-06	VerifyDeliveryCompletion	Confirm that delivery has actually completed.
+OP-07	ReturnToWarehouse	Navigate back to the warehouse.
+OP-08	PerformChamberSelfCheck	Check that essential chamber sensors work at startup.
+OP-09	LoadBatchProfile	Load batch identity and required environmental limits.
+OP-10	AuthenticateAndAuthoriseCommand	Verify the operator's identity and permissions.
+OP-11	ActivateSafeMode	Enter the appropriate safety-protection condition.
+OP-12	ManageRobotConnections	Manage simultaneous connections to the robot fleet.
+OP-13	AuthoriseRailwayCrossingEntry	Check crossing safety conditions before entry.
+OP-14	HandleCommunicationLoss	Detect link loss and apply the approved safe policy.
+OP-15	RecordAndReportEvent	Record events and report status to Mission Control.
+4.2 Operation schemas
+OP-08: PerformChamberSelfCheck
+- Description: Checks the essential chamber sensors when the system powers on.
+- Inputs: Power-on signal, sensor readings.
+- Outputs: Self-check result.
+- Reads: Temperature, humidity, vibration, door and power sensor status.
+- Changes: Marks the self-check as passed or failed.
+- Sends/Alerts: Reports sensor failure to Mission Control.
+- Assumes (precondition): Chamber power is available.
+- Result (postcondition): Monitoring begins only if all essential sensors work; otherwise, normal monitoring is blocked and a fault is reported.
+OP-09: LoadBatchProfile
+- Description: Loads the identification and environmental requirements of a medicine batch.
+- Inputs: Batch ID, temperature limits, humidity limits.
+- Outputs: Validated batch profile.
+- Reads: Batch identification and configured limits.
+- Changes: Stores the active batch profile.
+- Sends/Alerts: Reports invalid or missing profile information.
+- Assumes (precondition): Batch identification information is available.
+- Result (postcondition): A valid profile is stored and ready for use.
+OP-04: MonitorAndCorrectChamberConditions
+- Description: Monitors chamber temperature and humidity and attempts correction when values fall outside their allowed ranges.
+- Inputs: Current readings, target limits, correction command.
+- Outputs: Updated sensor readings and correction status.
+- Reads: Temperature, humidity, sensor health and batch profile.
+- Changes: Activates or adjusts the relevant environmental control.
+- Sends/Alerts: Alerts the operator if correction fails within the recovery period.
+- Assumes (precondition): Self-check passed, a valid batch profile is loaded, and the chamber door is closed.
+- Result (postcondition): Correction is considered successful only after sensor readings confirm that both values are back within range. Otherwise, protection mode is activated.
+OP-10: AuthenticateAndAuthoriseCommand
+- Description: Checks the identity and permissions of an operator before accepting a robot command.
+- Inputs: Credentials, operator role, requested command.
+- Outputs: Accept or reject decision.
+- Reads: Authentication records, role permissions and command details.
+- Changes: Records the command decision and its audit information.
+- Sends/Alerts: Reports unauthorised attempts according to the security policy.
+- Assumes (precondition): A command and operator identity are supplied.
+- Result (postcondition): The command is accepted only if authentication and role authorisation both succeed.
+OP-11: ActivateSafeMode
+- Description: Protects the robot and medicine when a critical battery, temperature or other safety fault occurs.
+- Inputs: Fault type, battery level, temperature reading.
+- Outputs: Safe Mode status and fault response.
+- Reads: Battery, chamber sensors, current robot state and fault thresholds.
+- Changes: Changes the robot to SAFE_MODE and inhibits unsafe actions.
+- Sends/Alerts: Sends an urgent fault notification and records the event.
+- Assumes (precondition): A critical condition has been detected by a functioning monitoring mechanism.
+- Result (postcondition): Safe Mode is entered within 3 seconds for the CR-01 trigger conditions, and unsafe delivery actions are inhibited.
+OP-13: AuthoriseRailwayCrossingEntry
+- Description: Checks whether it is safe for the robot to enter a railway crossing.
+- Inputs: Barrier status, train detection, approach status, sensor health, ARLCCS status.
+- Outputs: Entry authorised or denied.
+- Reads: Train sensors, barrier sensors, warning signals and communication status.
+- Changes: Records the crossing decision; the robot proceeds only when permitted.
+- Sends/Alerts: Denies entry and raises an alert when conditions are unsafe or uncertain.
+- Assumes (precondition): The robot is approaching the crossing and safety data is available.
+- Result (postcondition): Entry is authorised only when the barrier is open, no train is approaching, and the relevant safety inputs are valid.
+4.3 How operations change the chamber and robot states
+Operation	Initial condition	Action	Resulting state or condition
+OP-04: MonitorAndCorrectChamberConditions	Chamber monitoring	Temperature or humidity becomes out of range and correction fails.	Chamber enters protection mode; operator is alerted.
+Door-open handling	Active conservation	Door sensor reports that the door has opened.	Normal conservation is suspended until the door is closed and conditions and sensors are verified.
+OP-11: ActivateSafeMode	NAVIGATING	Critical battery or temperature condition occurs.	Robot enters SAFE_MODE.
+OP-14: HandleCommunicationLoss	NAVIGATING	Control-link timeout occurs.	Robot enters LINK_LOST handling and applies the local safety policy.
+The chamber protection mode is a chamber operating condition and should not automatically be treated as identical to the robot's SAFE_MODE state. The robot and chamber exchange fault information, and the robot's state changes according to the system safety policy.
+4.4 Operations requiring sensor verification
+1. MonitorAndCorrectChamberConditions
+Issuing a cooling or humidity-correction command does not prove that the required environmental conditions have been restored. The controller must read the sensors again and verify that the values remain within the batch limits.
+2. VerifyDeliveryCompletion
+Sending a delivery-complete command does not prove that the package was physically delivered. The system should check appropriate evidence, such as package-release confirmation or a delivery sensor, before recording completion.
+A similar rule applies to railway barriers: issuing an open command is not proof that the barrier is physically open. The system must verify barrier feedback.
