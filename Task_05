@@ -1,0 +1,65 @@
+5.1 Ten system constraints
+Constraint ID	Constraint in simple English	Why necessary
+C-01	A robot may start navigation only after accepting a valid delivery request.	Prevents unexpected movement.
+C-02	A robot must not navigate normally while it is handling an obstacle.	Prevents unsafe movement during obstacle avoidance.
+C-03	A robot may deliver only after reaching the destination and satisfying delivery conditions.	Prevents premature delivery.
+C-04	A critical battery or temperature trigger must cause Safe Mode within 3 seconds.	Protects the robot and temperature-sensitive medicine.
+C-05	A robot must not enter a railway crossing unless the barrier is open and no train is approaching.	Prevents collision with a train.
+C-06	Normal chamber conservation must not continue with the door open or essential sensors unverified.	Protects medicine quality.
+C-07	Every accepted or rejected robot command and every significant safety event must be logged.	Supports auditing and investigation.
+C-08	A command may be accepted only after authentication and role authorisation succeed.	Prevents unauthorised control.
+C-09	The system must support at least 20 simultaneously connected robots.	Meets the pilot capacity requirement.
+C-10	On communication loss, the robot must follow a defined safe policy and must not rely on stale crossing permissions.	Prevents unsafe decisions from delayed data.
+Two additional cross-system constraints are:
+- C-11: The robot must not be in DELIVERING while the chamber door is open.
+- C-12: Medicine must not be released while a chamber protection response is active.
+
+5.2 Formalisation of constraints
+Let the variables be Boolean unless stated otherwise. TRUE means the condition is present, and FALSE means it is absent.
+Constraint	Logical expression	Meaning
+C-01	DeliveryRequestAccepted → (RobotState = NAVIGATING)	An accepted request must initiate navigation.
+C-02	RobotState = AVOIDING_OBSTACLE → ¬NormalNavigation	Normal navigation must be suspended during obstacle handling.
+C-03	RobotState = DELIVERING → DestinationReached ∧ DeliveryConditionsValid	Delivery requires arrival and valid conditions.
+C-04	CriticalBattery ∨ CriticalTemperature → SafeModeWithin3Seconds	Critical conditions require timely Safe Mode entry.
+C-05	CrossingEntry → BarrierOpen ∧ ¬TrainApproaching ∧ CrossingSensorsHealthy	Crossing entry requires verified safe conditions.
+C-06	DoorOpen ∨ ¬EssentialSensorsHealthy → ¬NormalConservation	Normal conservation is prohibited when the door is open or essential sensors are unhealthy.
+C-07	CommandReceived → EventLogged	Every received command must have an audit record.
+C-08	CommandAccepted → Authenticated ∧ RoleAuthorised	A command is accepted only after both checks succeed.
+C-09	ConnectedRobots ≤ 20 → PilotCapacitySupported	The pilot must support every fleet size up to 20 connected robots.
+C-10	LinkLost → SafeCommunicationPolicyActive	Link loss requires the approved safe communication policy.
+C-11	DoorOpen → ¬(RobotState = DELIVERING)	The robot must not deliver while the chamber door is open.
+C-12	ProtectionResponseActive → ¬MedicineRelease	Medicine cannot be released during an active protection response.
+For C-09, the intended requirement is that the system supports at least 20 simultaneous connections. A complete load test should verify all 20 robots can connect and communicate, not merely that a counter reports 20 connections.
+5.3 Eight realistic violation scenarios
+Violation	Variable values / observed situation	How the system detects it	Expected response
+V-01 — C-01	DeliveryRequestAccepted = TRUE, RobotState = IDLE	Compare the accepted request event with the robot state.	Raise a state-transition fault, inhibit unintended behaviour and log the event.
+V-02 — C-02	RobotState = AVOIDING_OBSTACLE, NormalNavigation = TRUE	Compare the navigation command with the current state.	Cancel normal navigation and retain obstacle-avoidance control.
+V-03 — C-03	RobotState = DELIVERING, DestinationReached = FALSE	Check destination status before permitting package release.	Block delivery and log the invalid transition.
+V-04 — C-04	CriticalTemperature = TRUE, Safe Mode starts after 5 seconds.	Compare fault-detection and Safe Mode-entry timestamps.	Raise a critical timing alarm, alert Mission Control and activate the emergency safety response.
+V-05 — C-05	TrainApproaching = TRUE, BarrierOpen = TRUE, CrossingEntry = TRUE	Compare train detection and barrier feedback with the entry request.	Stop the robot before entry, deny crossing permission and alert the operator.
+V-06 — C-06	DoorOpen = TRUE, NormalConservation = TRUE	Compare door sensor status with the chamber operating mode.	Suspend normal conservation, alert the operator and require sensor and condition verification before resuming.
+V-07 — C-07	CommandReceived = TRUE, EventLogged = FALSE	Monitor the audit-log acknowledgement and event sequence.	Raise a logging fault, preserve available diagnostic evidence and alert Mission Control.
+V-08 — C-08	Authenticated = TRUE, RoleAuthorised = FALSE, CommandAccepted = TRUE	Compare the command decision with authentication and access-control records.	Reject or cancel the unauthorised command where possible, alert security personnel and log the incident.
+5.4 Two additional violation scenarios
+Violation	Variable values / observed situation	Detection and expected response
+V-09 — C-10	LinkLost = TRUE, SafeCommunicationPolicyActive = FALSE	The communication watchdog detects the missing policy activation. The robot enters the defined link-loss handling state, avoids relying on stale permissions and records the fault.
+V-10 — C-11 / C-12	DoorOpen = TRUE, RobotState = DELIVERING, MedicineRelease = TRUE	Door-state and release interlocks detect the conflict. Medicine release is blocked, delivery is suspended, and the event is logged and reported.
+5.5 Sensor failure and communication-loss handling
+The railway-crossing controller must treat unavailable or contradictory safety sensor readings as an unsafe or unknown condition.
+For example:
+- TrainSensorHealthy = FALSE
+- TrainApproaching = UNKNOWN
+- CrossingEntry = TRUE
+The expected response is to deny crossing entry, maintain or command the crossing protection according to its safety design, raise an alarm, and record the fault. The robot must not interpret an unknown train status as proof that the track is clear.
+Similarly, if communication with ARLCCS is lost, the robot must not enter based on an old permission. It must wait for fresh, verified crossing status. Any emergency movement must follow a formally approved safety policy.
+5.6 Verification strategy
+The completed solution can be verified using these methods:
+1. Functional testing: Confirm delivery requests, navigation, obstacle avoidance, delivery and return.
+2. State-transition testing: Check every valid, invalid and missing transition.
+3. Timing testing: Verify the 3-second Safe Mode requirement.
+4. Security testing: Test authentication, role permissions and command rejection.
+5. Sensor testing: Inject temperature, humidity, door, vibration and sensor faults.
+6. Integration testing: Verify robot, chamber, Mission Control and ARLCCS interactions.
+7. Load testing: Connect and operate 20 robots simultaneously.
+8. Regression testing: Repeat affected tests after CR-01, CR-02 and CR-03 changes.
+9. Traceability review: Ensure each requirement links to a state or operation, a constraint, and at least one test case.
