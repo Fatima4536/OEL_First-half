@@ -1,0 +1,43 @@
+2.1 Version-controlled change log
+Version 1.0 is the approved baseline. Version 1.1 contains the approved changes.
+CR ID	Req. ID	Old Requirement	New Requirement	Reason	Status
+CR-01	SAFE-01	Enter Safe Mode when critical battery or thermal condition is detected.	Enter Safe Mode within 3 seconds when chamber or battery temperature exceeds its critical threshold, or battery capacity falls below the emergency level.	Defines exact triggers and a measurable time limit.	Modified
+CR-02	NFR-02	Support communication with multiple robots simultaneously.	Support at least 20 simultaneously connected robots.	Defines a measurable capacity for the pilot.	Modified
+CR-03	FR-09	Only authenticated operators may issue robot commands.	Authenticate the operator and verify role-based authorisation before accepting any robot command.	Clearly specifies both authentication and authorisation.	Modified
+2.2 Why the new requirements are more testable
+- CR-01: A tester can simulate each critical condition and measure whether Safe Mode starts within 3 seconds.
+- CR-02: A tester can connect 20 robots simultaneously and check whether all remain connected and communicate correctly.
+- CR-03: A tester can use valid, invalid, and insufficiently privileged accounts to verify that commands are accepted or rejected correctly.
+2.3 Test cases
+Test ID	Test scenario	Expected result	Risk
+TC-01	Submit a delivery request while robot is IDLE.	Request accepted; robot enters NAVIGATING.	High
+TC-02	Submit a delivery request while robot is already NAVIGATING.	Duplicate request rejected.	Medium
+TC-03	Send a command using an unauthenticated account.	Command rejected and event logged.	Critical
+TC-04	Authenticated operator without the required role sends a command.	Command rejected and event logged.	Critical
+TC-05	Authorised operator sends a valid command.	Command validated, executed and status reported.	High
+TC-06	Battery drops below emergency level.	Safe Mode begins within 3 seconds; delivery is abandoned and a safe return is initiated when permitted.	Critical
+TC-07	Chamber temperature exceeds its critical threshold.	Safe Mode begins within 3 seconds and an alert is generated.	Critical
+TC-08	Obstacle is detected during navigation.	Robot suspends navigation, avoids the obstacle and resumes navigation when safe.	Critical
+TC-09	Robot reaches the destination.	Delivery occurs, then the robot enters RETURNING.	High
+TC-10	Connect 20 robots simultaneously.	All 20 remain connected and can exchange valid messages.	High
+TC-11	Control link is lost during navigation.	Robot enters LINK_LOST handling and follows its safe communication-loss policy.	Critical
+TC-12	Robot requests railway-crossing entry while the barrier is closed.	Robot remains outside the crossing.	Critical
+2.4 Multi-layer Requirements Traceability Matrix
+The following table connects requirements to states, operations, constraints, tests and risks. The identifiers are used again in Tasks 3–5.
+Requirement	State / Transition	Operation	Constraint	Test Case	Risk
+FR-01	IDLE → NAVIGATING	OP-01	C-01	TC-01	High
+FR-03	NAVIGATING → AVOIDING_OBSTACLE	OP-03	C-02	TC-08	Critical
+FR-05	NAVIGATING → DELIVERING	OP-05	C-03	TC-09	Critical
+FR-09	Command validation	OP-10	C-08	TC-03, TC-04, TC-05	Critical
+SAFE-01	Any operational state → SAFE_MODE	OP-11	C-04	TC-06, TC-07	Critical
+NFR-02	Multiple robots connected	OP-12	C-09	TC-10	High
+SAFE-02	Crossing approach / crossing entry	OP-13	C-05	TC-12	Critical
+SAFE-03	Operational state → LINK_LOST	OP-14	C-10	TC-11	Critical
+FR-08	Chamber monitoring / correction	OP-04	C-06	TC-07	Critical
+FR-10	Command and event processing	OP-15	C-07	TC-03, TC-06	High
+2.5 Which tests must be repeated after changes?
+Change Request	Tests to re-run	Reason
+CR-01	TC-06, TC-07, TC-11, TC-12 and relevant transition tests	Verify the new triggers, 3-second deadline and safe handling of faults during different robot states.
+CR-02	TC-10 and TC-01–TC-05 under concurrent load	Verify that the system supports 20 robots without breaking command processing, security or reporting.
+CR-03	TC-03, TC-04, TC-05 and command-related regression tests	Verify authentication and role checks for every command path.
+All affected tests should be run again after the relevant code changes. Regression testing should also check that unrelated safety behaviour still works.
